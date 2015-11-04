@@ -5,29 +5,38 @@ var TaskBox = React.createClass({
 
   getInitialState: function() {
     var tasks = JSON.parse(window.localStorage.getItem("data")) || [];
-    return {tasks: tasks, showTasks: 'All'};
+    return {tasks: tasks, showTasks: 'All', lastId: 0};
   },
 
   addTask: function(task) {
     var tasks = this.state.tasks;
     tasks.push(task);
-    this.setState({tasks: tasks});
+    this.setState({tasks: tasks, lastId: task.id});
     this.onTaskChange(tasks);
   },
 
-  markAsDone: function() {
-    var tasks = this.state.tasks;
-    this.setState({tasks: tasks});
-    this.onTaskChange(tasks);
+  markAsDone: function(id) {
+    for(var i = 0; i < this.state.tasks.length; i++) {
+        if(this.state.tasks[i].id === id) {
+            this.state.tasks[i].done = true;
+        }
+    }
+    this.setState({tasks: this.state.tasks});
+    this.onTaskChange(this.state.tasks);
   },
 
   filterTasks: function(filter) {
     this.setState({showTasks: filter});
   },
 
-  deleteCompleted: function(openedTasks) {
-    this.setState({tasks: openedTasks});
-    this.onTaskChange(openedTasks);
+  deleteCompleted: function() {
+      for(var i = 0; i < this.state.tasks.length; i++) {
+          if(this.state.tasks[i].done) {
+              this.state.tasks[i].deleted = true;
+          }
+      }
+      this.setState({tasks: this.state.tasks});
+      this.onTaskChange(this.state.tasks);
   },
 
   render: function() {
@@ -35,7 +44,7 @@ var TaskBox = React.createClass({
       <div className="todoList">
         <h1>My TODO list</h1>
         <br/>
-        <TaskForm onAddTask={this.addTask}/>
+        <TaskForm lastId={this.state.lastId} onAddTask={this.addTask}/>
         <br />
         <TaskList deleteCompleted={this.deleteCompleted} filterTasks={this.filterTasks}
                   markAsDone={this.markAsDone} data={this.state.tasks} showTasks={this.state.showTasks}/>
@@ -49,17 +58,14 @@ var TaskList = React.createClass({
     var showTasks = this.props.showTasks;
     var markAsDone = this.props.markAsDone;
 
-    var filteredTasks = this.props.data.map(function(task) {
-      if(showTasks === "Done" && task.done) {
-        return (<Task markAsDone={markAsDone} task={task}/>);
+      var filteredTasks = _.filter(this.props.data, "deleted", false);
+      if(showTasks === "Open") {
+          filteredTasks = _.filter(filteredTasks, "done", false);
+      } else if(showTasks === "Done") {
+          filteredTasks = _.filter(filteredTasks, "done", true);
       }
-      if(showTasks === "Open" && !task.done) {
-        return (<Task markAsDone={markAsDone} task={task}/>);
-      }
-      if(showTasks === "All") {
-        return (<Task markAsDone={markAsDone} task={task}/>);
-      }
-    });
+
+      var taskComponents = filteredTasks.map(item => (<Task markAsDone={markAsDone} task={item}/>));
 
     return (
       <div className="taskList">
@@ -68,7 +74,7 @@ var TaskList = React.createClass({
         <FilterButton filterTasks={this.props.filterTasks} showTasks={this.props.showTasks} title="Open"/>
         <FilterButton filterTasks={this.props.filterTasks} showTasks={this.props.showTasks} title="Done"/>
         <DeleteButton onDelete={this.props.deleteCompleted} tasks={this.props.data} title="Delete completed"/>
-        {filteredTasks}
+        {taskComponents}
       </div>
     );
   }
@@ -81,7 +87,7 @@ var TaskForm = React.createClass({
     if(!taskTitle) {
       return;
     }
-    this.props.onAddTask({name: taskTitle, done: false});
+      this.props.onAddTask({id: this.props.lastId + 1, name: taskTitle, done: false, deleted: false});
     React.findDOMNode(this.refs.taskTitle).value = '';
   },
 
@@ -100,14 +106,15 @@ var TaskForm = React.createClass({
 
 var Task = React.createClass({
   finishTask: function() {
-    this.props.task.done = true;
-    this.props.markAsDone();
+    //this.props.task.done = true;
+    this.props.markAsDone(this.props.task.id);
   },
 
   render: function() {
     return (
       <div>
-        <input type="checkbox" disabled={this.props.task.done} checked={this.props.task.done} onClick={this.finishTask}>{this.props.task.name}</input>
+        <input type="checkbox" disabled={this.props.task.done} checked={this.props.task.done}
+               onClick={this.finishTask}>{this.props.task.name}</input>
         <br/>
       </div>
     )
@@ -126,13 +133,7 @@ var FilterButton = React.createClass({
 
 var DeleteButton = React.createClass({
   deleteCompleted: function() {
-    var openedTasks = [];
-    for(var i = 0; i < this.props.tasks.length; i++) {
-      if(!this.props.tasks[i].done) {
-        openedTasks.push(this.props.tasks[i]);
-      }
-    }
-    this.props.onDelete(openedTasks);
+      this.props.onDelete();
   },
 
   render: function() {
